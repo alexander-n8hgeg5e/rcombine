@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import random
-from re import sub
+from re import sub,search
 from sys import argv,exit,stderr
 from math import floor,log10,ceil,floor,inf
 from multiprocessing import Pool,cpu_count
@@ -9,11 +9,13 @@ from pylib.du import ptb
 from pylib.du import dd
 from pprint import pprint
 
+used_list=[]
+
 def init_random():
     pass
     with open("/dev/urandom",'rb') as f:
         if args.verbose:
-            print("{} adding randomness ".format(time()))
+            print("# {} adding randomness ".format(time()))
         data=f.read(64)
     random.seed(data)
 
@@ -36,9 +38,9 @@ def gen_values():
             values.append(i*10**e)
     return values
 
-def print_values(values,start='[',sep=', ',end=']\n'):
+def print_values(values,start='[',sep=', ',end=']\n',format=False):
     lv=len(values)
-    print(start,end='')
+    rs=start+end
     for i in range(lv):
         v=values[i]
         s0="{:.3f}".format(v)
@@ -49,7 +51,8 @@ def print_values(values,start='[',sep=', ',end=']\n'):
         s=sub("000$",'K',s)
         s=sub('([1-9])([1-9])[0][0]$','\\1.\\2K',s)
         s=sub('([1-9])([1-9])[0][0]K$','\\1.\\2M',s)
-        print(s,end=sep if i != lv-1 else end)
+        rs=rs+s+(sep if i != (lv-1) else end)
+    print(rs,end='')
 
 def res_p(resistor_values):
     """
@@ -112,6 +115,16 @@ def has_dupes(l):
                 if l[i] == l[j]:
                     return True
     return False
+
+def has_reserved_ones(l):
+    global used_list
+    if any(thing in used_list for thing in l):
+        return True
+    return False
+
+def mark_used(v):
+    global used_list
+    used_list.append(v)
 
 def calc_better_v2(val,indexes,delta,random_jump_lock,nodupes,exclude,worker_index):
     counter=0
@@ -210,6 +223,15 @@ def dividelist(l,parts):
     lll.append(l[dil[-1]:])
     return lll
 
+def print_e(e,end=" ",format=False):
+    plog=abs(ceil(log10(args.precision)))+1
+    formatstr='e = {:.' + str(plog) + 'f}'
+    s=formatstr.format(e)
+    if format:
+        return s+end
+    else:
+        print(s,end=end)
+
 def combine(val,max_p=3,precision=0.01,add_resistor_factor=2,random_jump_lock=200,nodupes=False):
     global values
     bases = []
@@ -217,11 +239,12 @@ def combine(val,max_p=3,precision=0.01,add_resistor_factor=2,random_jump_lock=20
     for i in range(max_p-1):
         bases.append(val*(i+2))
         dividers.append(i+2)
+    print("# start values: "+str(bases))
     next_base_factor = add_resistor_factor
     lb=len(bases)
     pool=Pool(cpu_count())
     for bi in range(lb):
-        print("number of resistors = {}".format(bi))
+        #print("bi = {}".format(bi))
         divider=dividers[bi]
         nearest=get_nearest_index(bases[bi])
         indexes=[nearest]*divider
@@ -232,17 +255,17 @@ def combine(val,max_p=3,precision=0.01,add_resistor_factor=2,random_jump_lock=20
         while calc_factor(bases[bi],indexes) < next_base_factor or bi==lb-1:
             delta=calc_delta(val,indexes)
             e=abs(((val+delta)/val) - 1)
-            plog=abs(ceil(log10(precision)))+1
-            formatstr='e = {:.' + str(plog) + 'f}'
-            print(formatstr.format(e),end=' ')
-            print_values([values[i] for i in indexes],sep=',  ',end=']\n')
             if  e <= precision:
                 dupes_ok=True
                 if nodupes:
-                    if has_dupes(indexes):
+                    if has_dupes(indexes) or has_reserved_ones(indexes):
                         dupes_ok=False
                 if dupes_ok:
-                    return [values[i] for i in indexes]
+                    if nodupes:
+                        for i in indexes:
+                            mark_used(i)
+                    #print_values([values[i] for i in indexes],sep=',  ',end=']\n')
+                    return [values[i] for i in indexes],e
                 else:
                     # in case precision is ok but dupes not ok
                     # need to set delta high
@@ -275,18 +298,34 @@ def parse_args():
     ap.add_argument("-D","--do-not-add-default-resistor-values",action="store_true",default=False)
     ap.add_argument("-R","--no-reuse-value",action="store_true",default=False, help="implicitly enabled if also -D selected")
     ap.add_argument("-v","--verbose",action="store_true",default=True)
+    ap.add_argument("-o","--python-output",action="store_true",default=True,help="produce output suitable for the \"-r\" option")
     ap.add_argument("--debug",action="store_true",default=True)
-    ap.add_argument(dest="target_value",nargs=1,type=float)
-    ap.add_argument(dest="add_values",nargs='*',type=float)
+    ap.add_argument(dest="target_values",nargs="+",type=str)
+    ap.add_argument("--add",dest="add_values",nargs='*',type=float,default=[])
     ap.add_argument("-f","--value-file",help="file with values in a python list. The syntax is python syntax.",default=None)
     ap.add_argument("--print-values-and-exit",action="store_true")
+    ap.add_argument("-u","--in-use-value-file",type=str,help="file that is pyhton \"eval-able\" and contains a list with already consumed/used values")
     global args
     args=ap.parse_args()
     if args.do_not_add_default_resistor_values:
         args.no_reuse_value = True
 
-def resistor_string_to_float(s):
+def resistor_string_to_float(s,enable_mult=False):
     if type(s) is str:
+        if enable_mult:
+            sl=s.split(' ')
+            for i in range(len(sl)):
+                m=search('\\d+[xX][^ ]+',sl[i])
+                pos=m.start()
+                d=sub('(\\d+)[xX][^ ]+','\\1',sl[i][pos:])
+                d=int(d)
+                obj=sub('\\d+[xX]([^ ]+).*$','\\1',sl[i][pos:])
+                obj=sub('^(.*)[kK]','(\\1)*1000',obj)
+                obj=sub('^(.*)[mM]','(\\1)*1000000',obj)
+                i0=sl[i][:pos]
+                i1=sub('\\d+[xX][^ ]+','',sl[i][pos:])
+                sl[i]=i0+" ".join([obj]*d)+i1
+            s="["+", ".join(sl)+"]"
         s=sub('^(.*)[kK]','(\\1)*1000',s)
         s=sub('^(.*)[mM]','(\\1)*1000000',s)
         s=eval(s)
@@ -302,19 +341,47 @@ def main():
             file_values = [ resistor_string_to_float(v) for v in file_values ]
     else:
         file_values=[]
+
     if not args.do_not_add_default_resistor_values:
+        add_values=[resistor_string_to_float(v) for v in args.add_values]
         values=gen_values()+args.add_values+file_values
     else:
-        values=args.add_values + file_values
+        values= args.add_values + file_values
     values.sort()
+
+    if not args.in_use_value_file is None:
+        with open(args.in_use_value_file) as f:
+            used_values = eval(f.read())
+            used_values = [ resistor_string_to_float(v) for v in used_values ]
+            for v in used_values:
+                i=values.index(v)
+                used_list.append(i)
+
     if args.print_values_and_exit:
-        print_values(values,sep=',\n')
+        print("resistor values:")
+        print("=============")
+        print(values)
+        print("In-use values:")
+        print("=============")
+        pprint([ values[i] for i in used_list ])
         exit(0)
 
 
-    vals=combine(args.target_value[0],precision=args.precision,max_p=args.max_resistor_count,add_resistor_factor=args.add_resistor_factor,nodupes=args.no_reuse_value)
-    print(vals)
-    print("final combined value = {:.3f} [Ohm]".format(res_p(vals)))
+    if args.python_output:
+        print("[")
+
+    for target_value in args.target_values:
+        target_value = resistor_string_to_float(target_value,enable_mult=True)
+        print("# target_value = "+str(target_value))
+        vals,e=combine(target_value,precision=args.precision,max_p=args.max_resistor_count,add_resistor_factor=args.add_resistor_factor,nodupes=args.no_reuse_value)
+        if args.python_output:
+            print(", ".join(str(v) for v in vals)+",")
+        print("######{:10.10}##{:30.30}######".format("#"*10,"#"*30))
+        print("###   {:10.10}  {:30.30}   ###".format(print_e(e,format=True),str(vals)))
+        print("###   {:42.42}   ###".format("final combined value = {:.3f} [Ohm]".format(res_p(vals))))
+        print("######{:10.10}##{:30.30}######".format("#"*10,"#"*30))
+    if args.python_output:
+        print("]")
     
 if __name__ == '__main__':
     main()
