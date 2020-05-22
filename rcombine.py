@@ -292,19 +292,19 @@ def combine(val,max_p=3,precision=0.01,add_resistor_factor=2,random_jump_lock=20
 def parse_args():
     from argparse import ArgumentParser
     ap=ArgumentParser()
-    ap.add_argument("-p","--precision",type=float,default=0.01)
-    ap.add_argument("-n","--max-resistor-count",type=int,default=3)
-    ap.add_argument("-a","--add-resistor-factor",type=float,default=1,help='defines how much the resistors can differ befor another resistors is added')
-    ap.add_argument("-D","--do-not-add-default-resistor-values",action="store_true",default=False)
-    ap.add_argument("-R","--no-reuse-value",action="store_true",default=False, help="implicitly enabled if also -D selected")
+    ap.add_argument("-p","--precision",type=float,default=0.01,help="Factor of how much the combined value is allowed to diff from the target value.")
+    ap.add_argument("-n","--max-resistor-count",type=int,default=3,help="How many resistors you want to use at max to combine to one target value.")
+    ap.add_argument("-a","--add-resistor-factor",type=float,default=1,help='Factor of how much the values in the set of the combination of resistors can diff from each other befor the length of the set is enlarged and another place for a resistor is added to the search.')
+    ap.add_argument("-D","--do-not-add-default-resistor-values",action="store_true",default=False,help="Implicitly selects no the no-reuse-value option and no default values are added.")
+    ap.add_argument("-R","--no-reuse-value",action="store_true",default=False, help="Implicitly enabled if also -D selected. No values will be used more than once. This is for use with a custom value list in contrast to use a default list.")
     ap.add_argument("-v","--verbose",action="store_true",default=True)
     ap.add_argument("-o","--python-output",action="store_true",default=True,help="produce output suitable for the \"-r\" option")
     ap.add_argument("--debug",action="store_true",default=True)
-    ap.add_argument(dest="target_values",nargs="+",type=str)
+    ap.add_argument(dest="target_values",nargs="+",type=str,help='possible syntax := \"5k 10K 2x1k 2000.5 50.3k 5x2.3M 2.3m\". Whereby \"2x\" means two times the following thing (no space).')
     ap.add_argument("--add",dest="add_values",nargs='*',type=float,default=[])
-    ap.add_argument("-f","--value-file",help="file with values in a python list. The syntax is python syntax.",default=None)
-    ap.add_argument("--print-values-and-exit",action="store_true")
-    ap.add_argument("-u","--in-use-value-file",type=str,help="file that is pyhton \"eval-able\" and contains a list with already consumed/used values")
+    ap.add_argument("-f","--value-file",help="These are the values that you want to use to be combined to the target values/value . Specify a file with values in a python list. The syntax is python syntax.",default=None)
+    ap.add_argument("--print-values-and-exit",action="store_true",help="Print the values that are available to be combined to the target values. The output depends on the the other options that affect the available values. Use this if you want to check the list of values to find out if the the program understands your input as desired.")
+    ap.add_argument("-u","--in-use-value-file",type=str,help="File that is python \"eval-able\" and contains a list with already consumed/used values. Paste the output of this program with the -o option into this file. The values from this file will not be used in the search of combinations.")
     global args
     args=ap.parse_args()
     if args.do_not_add_default_resistor_values:
