@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import random
-from re import sub,search
+from re import sub,search,match
 from sys import argv,exit,stderr
 from math import floor,log10,ceil,floor,inf
 from multiprocessing import Pool,cpu_count
@@ -310,26 +310,44 @@ def parse_args():
     if args.do_not_add_default_resistor_values:
         args.no_reuse_value = True
 
+def resistor_string_sub_symbols(s):
+    s=sub('([ ]|^)([^ ]+)[kK]','\\1(\\2)*1000',s)
+    s=sub('([ ]|^)([^ ]+)[mM]','\\1(\\2)*1000000',s)
+    return s
+
 def resistor_string_to_float(s,enable_mult=False):
     if type(s) is str:
         if enable_mult:
-            sl=s.split(' ')
+            parts=s.split(' ')
+            sl=[]
+            for part in parts:
+                if match('^\\d+[xX][^ ]+$',part):
+                    d=sub('^(\\d+)[xX][^ ]+$','\\1',part)
+                    d=int(d)
+                    obj=sub('^\\d+[xX]([^ ]+)$','\\1',part)
+                    sl+=([obj]*d)
+                else:
+                    sl.append(part)
             for i in range(len(sl)):
-                m=search('\\d+[xX][^ ]+',sl[i])
-                pos=m.start()
-                d=sub('(\\d+)[xX][^ ]+','\\1',sl[i][pos:])
-                d=int(d)
-                obj=sub('\\d+[xX]([^ ]+).*$','\\1',sl[i][pos:])
-                obj=sub('^(.*)[kK]','(\\1)*1000',obj)
-                obj=sub('^(.*)[mM]','(\\1)*1000000',obj)
-                i0=sl[i][:pos]
-                i1=sub('\\d+[xX][^ ]+','',sl[i][pos:])
-                sl[i]=i0+" ".join([obj]*d)+i1
-            s="["+", ".join(sl)+"]"
-        s=sub('^(.*)[kK]','(\\1)*1000',s)
-        s=sub('^(.*)[mM]','(\\1)*1000000',s)
-        s=eval(s)
-    return float(s)
+                sl[i]=float(eval(resistor_string_sub_symbols(sl[i])))
+            s=sl
+        else:
+            s=float(eval(resistor_string_sub_symbols(s)))
+    else:
+        s=float(s)
+    return s
+
+def prepare_target_values(values,enable_mult=True):
+    _values=[]
+    for v in values:
+        _values.append( resistor_string_to_float(  v, enable_mult=True ))
+    values=[]
+    for v in _values:
+        if hasattr(v,'__iter__'):
+            values+=prepare_target_values(v)
+        else:
+            values.append(v)
+    return values
 
 def main(): 
     global values
@@ -337,8 +355,16 @@ def main():
     init_random()
     if not args.value_file is None:
         with open(args.value_file) as f:
-            file_values = eval(f.read())
-            file_values = [ resistor_string_to_float(v) for v in file_values ]
+            _file_values = eval(f.read())
+            file_values=[]
+            for v in _file_values:
+                float_or_floats=resistor_string_to_float(v)
+                if hasattr(float_or_floats,'__iter__'):
+                    if not type(float_or_floats) is list:
+                        float_or_floats=list(float_or_floats)
+                        file_values+=float_or_floats
+                else:
+                    file_values.append(float_or_floats)
     else:
         file_values=[]
 
@@ -346,7 +372,7 @@ def main():
         add_values=[resistor_string_to_float(v) for v in args.add_values]
         values=gen_values()+args.add_values+file_values
     else:
-        values= args.add_values + file_values
+        values = args.add_values + file_values
     values.sort()
 
     if not args.in_use_value_file is None:
@@ -370,8 +396,8 @@ def main():
     if args.python_output:
         print("[")
 
-    for target_value in args.target_values:
-        target_value = resistor_string_to_float(target_value,enable_mult=True)
+    target_values=prepare_target_values(args.target_values,enable_mult=True)
+    for target_value in target_values:
         print("# target_value = "+str(target_value))
         vals,e=combine(target_value,precision=args.precision,max_p=args.max_resistor_count,add_resistor_factor=args.add_resistor_factor,nodupes=args.no_reuse_value)
         if args.python_output:
