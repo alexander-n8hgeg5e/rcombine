@@ -400,12 +400,14 @@ def calc_better_v3(val,indexes,delta,random_jump,nodupes,worker_index,block_jump
             for j in range(lci):
                 ri = random.randint(1,k)
                 if serial and type(choices[i][j]) is FunctionType:
-                    try:
-                        cij=choices[i][j]
-                        choices[i][j]=choices[i][j](ri)
-                    except TypeError as e:
-                        cij=choices[i][j]
-                        raise e
+                    if choices[i][j].__name__=="gen_modify_func":
+                        try:
+                            cij=choices[i][j]
+                            # generates modify func with start index ri ("random jump")
+                            choices[i][j]=choices[i][j](ri)
+                        except TypeError as e:
+                            cij=choices[i][j]
+                            raise e
                 else:
                     choices[i][j]*=ri
         #
