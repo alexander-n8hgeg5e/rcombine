@@ -507,7 +507,7 @@ def parse_args():
     from argparse import ArgumentParser
     ap=ArgumentParser()
     ap.add_argument("-p","--precision",type=float,default=0.01,help="Factor of how much the combined value is allowed to diff from the target value.")
-    ap.add_argument("-n","--max-resistor-count",type=int,default=3,help="How many resistors you want to use at max to combine to one target value.")
+    ap.add_argument("-n","--max-resistor-count",type=int,default=3,help="How many branches/resistors in \"parallel\" you want to use at max to combine to one target value.")
     ap.add_argument("-a","--add-resistor-factor",type=float,default=1,help='Factor of how much the values in the set of the combination of resistors can diff from each other befor the length of the set is enlarged and another place for a resistor is added to the search.')
     ap.add_argument("-D","--do-not-add-default-resistor-values",action="store_true",default=False,help="Implicitly selects \"--no-reuse-value\" and no default values are added.")
     ap.add_argument("-R","--no-reuse-value",action="store_true",default=False, help="Implicitly enabled if also -D selected. No values will be used more than once. This is for use with a custom value list in contrast to use a default list.")
