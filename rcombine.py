@@ -372,6 +372,18 @@ def calc_better_v2(val,indexes,delta,random_jump_lock,nodupes,exclude,worker_ind
         if counter%10000==0:
             init_random()
 
+def find_index_near_val(val):
+    min_dist=inf
+    min_i = None
+    for i in range(len(values)):
+        dist=abs(val - values[i])
+        if dist < min_dist:
+            min_i = i
+            min_dist = dist
+        if dist > min_dist:
+            break # sorted values
+    return min_i
+
 def calc_better_v3(val,indexes,delta,random_jump,nodupes,worker_index,block_jump,serial,fix=[]):
     """
     """
@@ -381,7 +393,9 @@ def calc_better_v3(val,indexes,delta,random_jump,nodupes,worker_index,block_jump
                 thing=SingleIndex(thing)
             # -distance , because need lower value
             if type(thing) is SingleIndex:
-                ret=thing.make_double( max(start_index - distance,0) )
+                # make double, no distance yet
+                min_dist_index = find_index_near_val(val/2)
+                ret=thing.make_double( min_dist_index )
             elif type(thing) is DoubleIndex:
                 i=random.randint(0,len(thing)-1)
                 _thing=[thing[0],thing[1]]
