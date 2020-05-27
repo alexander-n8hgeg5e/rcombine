@@ -255,8 +255,8 @@ def combine(val,max_p=3,precision=0.01,add_resistor_factor=2,random_jump_lock=20
     print("# start values: "+str(bases))
     next_base_factor = add_resistor_factor
     lb=len(bases)
-    #pool=Pool(cpu_count())
-    pool=Pool(1)
+    pool=Pool(cpu_count())
+    #pool=Pool(1)
     for bi in range(lb):
         #print("bi = {}".format(bi))
         divider=dividers[bi]
