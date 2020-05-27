@@ -226,8 +226,15 @@ def mark_used(v):
     global used_list
     used_list.append(v)
 
+is_better_counter=0
 def is_better(val,new_indexes,delta):
-    return abs(calc_delta(val,new_indexes)) < abs(delta)
+    global is_better_counter
+    is_better_counter+=1
+    new=abs(calc_delta(val,new_indexes))
+    old=abs(delta)
+    if args.verbose and is_better_counter % 100000 == 0:
+        print("WI = {}  CI= {:20.20} DN = {:3.2f}  DO = {:3.2f}".format(Worker_index,str(new_indexes),new,old))
+    return new < old 
 
 def indexes_not_to_high(indexes,length):
     for i in indexes:
@@ -255,7 +262,8 @@ def combine(val,max_p=3,precision=0.01,add_resistor_factor=2,random_jump_lock=20
     print("# start values: "+str(bases))
     next_base_factor = add_resistor_factor
     lb=len(bases)
-    pool=Pool(cpu_count())
+    _cpu_count=cpu_count()
+    pool=Pool(_cpu_count)
     #pool=Pool(1)
     for bi in range(lb):
         #print("bi = {}".format(bi))
@@ -308,6 +316,10 @@ def combine(val,max_p=3,precision=0.01,add_resistor_factor=2,random_jump_lock=20
                         indexes=results[res_i].get()
                         results.pop(res_i)
                         done=True
+                        pool.terminate()
+                        pool.join()
+                        pool.close()
+                        pool=Pool(_cpu_count)
                         break
                 sleep(0.01)
 
@@ -318,6 +330,8 @@ def calc_better_v2(val,indexes,delta,random_jump_lock,nodupes,exclude,worker_ind
     block_jump=20
     value_index_set=set(range(len(values)))-exclude
     done=False
+    global Worker_index
+    Worker_index=worker_index
     while not done:
         li=len(indexes)
         for i in range(li):
