@@ -631,8 +631,11 @@ def main():
             used_values = eval(f.read())
             used_values = [ resistor_string_to_float(v) for v in used_values ]
             for v in used_values:
-                i=values.index(v)
-                used_list.append(i)
+                try:
+                    i=values.index(v)
+                    used_list.append(i)
+                except ValueError:
+                    pass # no need to remove not existing
 
     if args.print_values_and_exit:
         print("resistor values:")
