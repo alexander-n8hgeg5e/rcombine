@@ -11,6 +11,7 @@ from pprint import pprint
 from operator import methodcaller
 from types import FunctionType
 from copy import deepcopy
+from pylib.electronic.resistor_utils import resistor_string_to_float,flatten_thing,is_iterable
 
 used_list=[]
 
@@ -159,9 +160,6 @@ def res_sp(resistor_values):
         _resistor_values.append(res_s(v))
     return res_p(_resistor_values)
 
-def is_iterable(thing):
-    return hasattr(thing,'__iter__')
-
 def res_sp_from_indexes(indexes):
     global values
     try:
@@ -195,16 +193,6 @@ def calc_max_step(indexes):
         mstep=min(mstep,lv-i-1)
         mstep=min(mstep,i)
     return mstep
-
-def flatten_thing(thing):
-    cls=thing.__class__
-    flat=cls()
-    for v in thing:
-        if is_iterable(v):
-            flat+=cls(v)
-        else:
-            flat.append(v)
-    return flat
 
 def has_dupes(l):
     flat=flatten_thing(l)
@@ -557,32 +545,13 @@ def parse_args():
     if args.do_not_add_default_resistor_values:
         args.no_reuse_value = True
 
-def resistor_string_sub_symbols(s):
-    s=sub('([ ]|^)([^ ]+)[kK]','\\1(\\2)*1000',s)
-    s=sub('([ ]|^)([^ ]+)[mM]','\\1(\\2)*1000000',s)
-    return s
-
-def resistor_string_to_float(s,enable_mult=False):
-    if type(s) is str:
-        if enable_mult:
-            parts=s.split(' ')
-            sl=[]
-            for part in parts:
-                if match('^\\d+[xX][^ ]+$',part):
-                    d=sub('^(\\d+)[xX][^ ]+$','\\1',part)
-                    d=int(d)
-                    obj=sub('^\\d+[xX]([^ ]+)$','\\1',part)
-                    sl+=([obj]*d)
-                else:
-                    sl.append(part)
-            for i in range(len(sl)):
-                sl[i]=float(eval(resistor_string_sub_symbols(sl[i])))
-            s=sl
-        else:
-            s=float(eval(resistor_string_sub_symbols(s)))
-    else:
-        s=float(s)
-    return s
+def remove_indexes(indexes,thing):
+    _thing=thing
+    thing=_thing.__class__()
+    for i in range(len(_thing)):
+        if not i in indexes:
+            thing.append(_thing[i])
+    return thing
 
 def prepare_target_values(values,enable_mult=True):
     _values=[]
@@ -627,6 +596,7 @@ def main():
     values=Values(values)
 
     if not args.in_use_value_file is None:
+        global used_list
         with open(args.in_use_value_file) as f:
             used_values = eval(f.read())
             used_values = [ resistor_string_to_float(v) for v in used_values ]
@@ -636,6 +606,9 @@ def main():
                     used_list.append(i)
                 except ValueError:
                     pass # no need to remove not existing
+        in_use_values=[ values[i] for i in used_list ]
+        values=remove_indexes(used_list,values)
+        used_list=[] # reset is ok, all values are removed
 
     if args.print_values_and_exit:
         print("resistor values:")
@@ -643,7 +616,7 @@ def main():
         print(values)
         print("In-use values:")
         print("=============")
-        pprint([ values[i] for i in used_list ])
+        pprint(in_use_values)
         exit(0)
 
 
